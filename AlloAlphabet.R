@@ -136,10 +136,14 @@ french_phoneme <- function(redcap_data){
     redcap_data[!is.na(redcap_data$french_seg_autostop) & redcap_data$french_seg_autostop==0, 
                 names(redcap_data) %like% '^french_seg\\d+$'] ==1 ,na.rm=TRUE)
   
+  ## Sum of the four phoneme types
+  redcap_data$phoneme_french <- rowSums(redcap_data[,c('sup_initial_score_fr','identification_score_fr','sup_final_score_fr','seg_score_fr')])
+  
   ## Return a dataframe with the same number of rows as the input, but containing new columsn
   # Which columns to send
   incl_col <- keep_cols <- c(
     'record_id',
+    'phoneme_french',
     'sup_initial_score_fr',
     'identification_score_fr',
     'sup_final_score_fr',
@@ -148,6 +152,98 @@ french_phoneme <- function(redcap_data){
     names(redcap_data)[names(redcap_data) %like% '^french_id\\d+$'],
     names(redcap_data)[names(redcap_data) %like% '^french_fin\\d+$'],
     names(redcap_data)[names(redcap_data) %like% '^french_seg\\d+$']
+  )
+  return(redcap_data[,incl_col])
+}
+
+french_vocab <- function(redcap_data){
+  # This measure not available for LITE (it was abbreviated and not comparable)
+  redcap_data$french_antonyms <- NA
+  redcap_data$french_antonyms[redcap_data$french_ant_autostop==1] <- 0
+  redcap_data$french_antonyms[!is.na(redcap_data$french_ant_autostop) & redcap_data$french_ant_autostop==0] <- rowSums(
+    redcap_data[!is.na(redcap_data$french_ant_autostop) & redcap_data$french_ant_autostop==0, 
+              names(redcap_data) %like% '^french_ant\\d+$'] ==1 ,na.rm=TRUE)
+  
+  # This measure not available for LITE (it was abbreviated and not comparable)
+  redcap_data$french_synonyms <- NA
+  redcap_data$french_synonyms[redcap_data$french_syn_autostop==1] <- 0
+  redcap_data$french_synonyms[!is.na(redcap_data$french_syn_autostop) & redcap_data$french_syn_autostop==0] <- rowSums(
+    redcap_data[!is.na(redcap_data$french_syn_autostop) & redcap_data$french_syn_autostop==0, 
+              names(redcap_data) %like% '^french_syn\\d+$'] ==1 ,na.rm=TRUE)
+  
+  # This measure not available for LITE (syn and ant were abbreviated and not comparable)
+  redcap_data$vocab_french <- NA
+  redcap_data$vocab_french[!is.na(redcap_data$french_synonyms) & !is.na(redcap_data$french_antonyms)] <- 
+    redcap_data$french_synonyms[!is.na(redcap_data$french_synonyms) & !is.na(redcap_data$french_antonyms)] +
+    redcap_data$french_antonyms[!is.na(redcap_data$french_synonyms) & !is.na(redcap_data$french_antonyms)]
+  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- keep_cols <- c(
+    'record_id',
+    'vocab_french',
+    'french_synonyms',
+    'french_antonyms',
+    names(redcap_data)[names(redcap_data) %like% '^french_syn\\d+$'],
+    names(redcap_data)[names(redcap_data) %like% '^french_ant\\d+$']
+  )
+  return(redcap_data[,incl_col])
+}
+
+french_oralcomp <- function(redcap_data){
+  
+  # This measure was administered to all children (longer oral comprehension passage). 
+  # If children got 0 out of 5 on this exercise AND they were in the FULL arm, they completed the short passage version
+  redcap_data$french_oralcomp_long <- NA
+  
+  # AUTOSTOP WAS ONLY USED IN LITE FOR SOME REASON, SO IGNORING IT
+  #redcap_data$french_oralcomp_long[redcap_data$french_comp2_autostop==1] <- 0
+  #redcap_data$french_oralcomp_long[redcap_data$french_comp2_autostop_lite==1] <- 0
+  
+  # Test whether answers were recorded for at least one oralcomp_long question
+  redcap_data$did_french_oralcomp_lite <-
+    !apply(is.na(redcap_data[,names(redcap_data) %like% '^french_comp2q\\d_lite$']),1,all)
+  redcap_data$did_french_oralcomp_full <-
+    !apply(is.na(redcap_data[,names(redcap_data) %like% '^french_comp2q\\d$']),1,all)
+  
+  # Copy the LITE data into the FULL columns before doing the rowSums
+  redcap_data[redcap_data$did_french_oralcomp_lite,names(redcap_data) %like% '^french_comp2q\\d$'] <-
+    redcap_data[redcap_data$did_french_oralcomp_lite,names(redcap_data) %like% '^french_comp2q\\d_lite$']
+  # Perform the sum over the FULL columns only (having copied LITE columns over where applicable)
+  redcap_data$french_oralcomp_long[redcap_data$did_french_oralcomp_lite | redcap_data$did_french_oralcomp_full] <- rowSums(
+    redcap_data[redcap_data$did_french_oralcomp_lite | redcap_data$did_french_oralcomp_full, 
+                names(redcap_data) %like% '^french_comp2q\\d$']==1 ,na.rm=TRUE)
+
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- keep_cols <- c(
+    'record_id',
+    'french_oralcomp_long',
+    names(redcap_data)[names(redcap_data) %like% '^french_comp2q\\d$']
+    )
+  return(redcap_data[,incl_col])
+}
+
+allo_isomorphic <- function(redcap_data){
+  
+  # This measure was administered to all children (longer oral comprehension passage). 
+  # If children got 0 out of 5 on this exercise AND they were in the FULL arm, they completed the short passage version
+  redcap_data$allo_mini_score <- NA
+ 
+  # Test whether answers were recorded for at least one allo_item question
+  redcap_data$did_allo_mini <-
+    !apply(is.na(redcap_data[,names(redcap_data) %like% '^allo_item\\d+_v2_mini$']),1,all)
+  
+  # Perform the sum over all allo_item columns
+  redcap_data$allo_mini_score[redcap_data$did_allo_mini] <- rowSums(
+    redcap_data[redcap_data$did_allo_mini, names(redcap_data) %like% '^allo_item\\d+_v2_mini$']==1 ,na.rm=TRUE)
+  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- keep_cols <- c(
+    'record_id',
+    'allo_mini_score',
+    names(redcap_data)[names(redcap_data) %like% '^allo_item\\d+_v2_mini$']
   )
   return(redcap_data[,incl_col])
 }
