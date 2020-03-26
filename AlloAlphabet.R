@@ -315,3 +315,109 @@ caretaker_job <- function(redcap_data){
   )
   return(redcap_data[,incl_col])
 }
+
+economic_activities <- function(redcap_data){
+  # Economic activities
+  set_prefix <- 'activityEconomic_'
+  idx_start = which(names(redcap_data) %like% '^manage_business$')
+  idx_stop = which(names(redcap_data) %like% '^produce_property$')
+  idx_start_lite = which(names(redcap_data) %like% '^manage_business_lite$')
+  idx_stop_lite = which(names(redcap_data) %like% '^produce_property_lite$')
+  redcap_data[redcap_data$redcap_event_name=='baseline_arm_3',seq(idx_start,idx_stop)] <- 
+    redcap_data[redcap_data$redcap_event_name=='baseline_arm_3',seq(idx_start_lite,idx_stop_lite)] 
+  names(redcap_data)[seq(idx_start,idx_stop)] <- sprintf('%s%s',set_prefix,names(redcap_data)[seq(idx_start,idx_stop)])
+  resp_list = c('Oui','Non','NSP','PdR')
+  for (coli in seq(idx_start,idx_stop)) {
+    new_value <- resp_list[redcap_data[,coli]]
+    redcap_data[ , coli] <- new_value
+  }
+  
+  redcap_data$Total_activityEconomic <- rowSums(redcap_data[,names(redcap_data) %like% '^activityEconomic_']=="Oui",na.rm=TRUE)
+  redcap_data$Total_activityEconomic[apply(is.na(redcap_data[,names(redcap_data) %like% '^activityEconomic_']),1,all)] <- NA  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- c(
+    'record_id',
+    'Total_activityEconomic',
+    names(redcap_data)[names(redcap_data) %like% '^activityEconomic_']
+  )
+  return(redcap_data[,incl_col])
+}
+
+domestic_activities <-function(redcap_data){
+  # Chore-related activities
+  set_prefix <- 'activityChore_'
+  idx_start = which(names(redcap_data) %like% '^make_purchases$')
+  idx_stop = which(names(redcap_data) %like% '^other_housework$')
+  idx_start_lite = which(names(redcap_data) %like% '^make_purchases_lite$')
+  idx_stop_lite = which(names(redcap_data) %like% '^other_housework_lite$')
+  redcap_data[redcap_data$redcap_event_name=='baseline_arm_3',seq(idx_start,idx_stop)] <- 
+    redcap_data[redcap_data$redcap_event_name=='baseline_arm_3',seq(idx_start_lite,idx_stop_lite)] 
+  names(redcap_data)[seq(idx_start,idx_stop)] <- sprintf('%s%s',set_prefix,names(redcap_data)[seq(idx_start,idx_stop)])
+  resp_list = c('Oui','Non','NSP','PdR')
+  for (coli in seq(idx_start,idx_stop)) {
+    new_value <- resp_list[redcap_data[,coli]]
+    redcap_data[ , coli] <- new_value
+  }
+  redcap_data$Total_activityChore <- rowSums(redcap_data[,names(redcap_data) %like% '^activityChore_']=="Oui",na.rm=TRUE)
+  redcap_data$Total_activityChore[apply(is.na(redcap_data[,names(redcap_data) %like% '^activityChore_']),1,all)] <- NA  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- c(
+    'record_id',
+    'Total_activityChore',
+    names(redcap_data)[names(redcap_data) %like% '^activityChore_']
+  )
+  return(redcap_data[,incl_col])
+}
+
+cocoa_activities <-function(redcap_data){
+  # Cocoa-related activities
+  
+  redcap_data$WorkCocoa <- apply(redcap_data[,names(redcap_data) %like% '^activityCocoa_']=='Oui',1,any) # Cocoa
+  
+  set_prefix <- 'activityCocoa_'
+  idx_start = which(names(redcap_data) %like% '^clean_fields$')
+  idx_stop = which(names(redcap_data) %like% '^other_job$')
+  idx_start_lite = which(names(redcap_data) %like% '^clean_fields_lite$')
+  idx_stop_lite = which(names(redcap_data) %like% '^other_job_lite$')
+  redcap_data[redcap_data$redcap_event_name=='baseline_arm_3',seq(idx_start,idx_stop)] <- 
+    redcap_data[redcap_data$redcap_event_name=='baseline_arm_3',seq(idx_start_lite,idx_stop_lite)] 
+  names(redcap_data)[seq(idx_start,idx_stop)] <- sprintf('%s%s',set_prefix,names(redcap_data)[seq(idx_start,idx_stop)])
+  resp_list = c('Oui','Non','NSP','PdR')
+  for (coli in seq(idx_start,idx_stop)) {
+    new_value <- resp_list[redcap_data[,coli]]
+    redcap_data[ , coli] <- new_value
+  }
+  # This is meant to correct the activityCocoa to only include cocoa and not other agriculture. 
+  # For the FULL kids (baseline_arm_1 and 2) that works, but for LITE kids, it was never asked.
+  redcap_data[
+    (!is.na(redcap_data$fieldwork_type_1) & redcap_data$fieldwork_type_1==0),
+    names(redcap_data) %like% '^activityCocoa_'] <- "Non"
+  
+  
+  redcap_data$Total_activityCocoa <- rowSums(redcap_data[,names(redcap_data) %like% '^activityCocoa_']=="Oui",na.rm=TRUE)
+  redcap_data$Total_activityCocoa[apply(is.na(redcap_data[,names(redcap_data) %like% '^activityCocoa_']),1,all)] <- NA  
+  
+  
+  haz_work_types <- c('activityCocoa_spray_insecticides','activityCocoa_spread_fertilizer','activityCocoa_spread_chemicals',
+                      'activityCocoa_beans_to_storage','activityCocoa_cutting_trees','activityCocoa_burning_trees')
+  redcap_data$Total_activityCocoa_Hazard <- rowSums(redcap_data[,haz_work_types]=="Oui")
+  redcap_data$Total_activityCocoa_Hazard[apply(is.na(redcap_data[,haz_work_types]),1,all)] <- NA
+  redcap_data$Total_activityCocoa_Hazard[redcap_data$WorkCocoa==FALSE] <- 0
+  
+  # Non-hazardous is all remaining columns
+  redcap_data$Total_activityCocoa_Nonhazard <- redcap_data$Total_activityCocoa - redcap_data$Total_activityCocoa_Hazard
+  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- c(
+    'record_id',
+    'WorkCocoa',
+    'Total_activityCocoa',
+    'Total_activityCocoa_Hazard',
+    'Total_activityCocoa_Nonhazard',
+    names(redcap_data)[names(redcap_data) %like% '^activityCocoa_']
+  )
+  return(redcap_data[,incl_col])
+}
