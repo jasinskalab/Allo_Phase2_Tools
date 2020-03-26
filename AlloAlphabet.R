@@ -247,3 +247,33 @@ allo_isomorphic <- function(redcap_data){
   )
   return(redcap_data[,incl_col])
 }
+
+ses_inventory <- function(redcap_data){
+  
+  # This inventory is the sum of 15 yes/no items for what the child reports having in household
+  # Administered separately in FULL and LITE versions, but same 15 questions
+  redcap_data$ses_score <- NA
+  
+  # Aggregate FULL scores (as checkbox, they will auto-populate 0 if the form was saved, NA if form was not saved)
+  redcap_data$ses_score_full <-rowSums(redcap_data[,names(redcap_data) %like% '^objects_at_home_\\d+$']==1, na.rm=FALSE)
+
+  # Aggregate LITE scores
+  redcap_data$ses_score_lite <-rowSums(redcap_data[,names(redcap_data) %like% '^objects_at_home_lite_\\d+$']==1, na.rm=FALSE)
+  
+  # Combine the scores
+  redcap_data$ses_score[!is.na(redcap_data$ses_score_lite)] <- redcap_data$ses_score_lite[!is.na(redcap_data$ses_score_lite)]
+  redcap_data$ses_score[!is.na(redcap_data$ses_score_full)] <- redcap_data$ses_score_full[!is.na(redcap_data$ses_score_full)]
+  
+  # Combine the items by copying non-NA LITE data into FULL columns
+  redcap_data[!is.na(redcap_data$ses_score_lite), names(redcap_data) %like% '^objects_at_home_\\d+$'] <-
+    redcap_data[!is.na(redcap_data$ses_score_lite), names(redcap_data) %like% '^objects_at_home_lite_\\d+$']
+  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- keep_cols <- c(
+    'record_id',
+    'ses_score',
+    names(redcap_data)[names(redcap_data) %like% '^objects_at_home_\\d+$']
+  )
+  return(redcap_data[,incl_col])
+}
