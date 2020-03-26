@@ -277,3 +277,41 @@ ses_inventory <- function(redcap_data){
   )
   return(redcap_data[,incl_col])
 }
+
+parent_educ <- function(redcap_data){
+  
+  # Father education (1: None or Some Primary, 2: Completed Primary, 3: Completed Secondary, 4: Completed University)
+  redcap_data$father_education
+  
+  # Mother education (1: None or Some Primary, 2: Completed Primary, 3: Completed Secondary, 4: Completed University)
+  redcap_data$mother_education
+  
+  # How do we combine two ordinals? Mean / median produce same output with only two inputs
+  redcap_data$parents_education <- rowMeans(redcap_data[,c('father_education','mother_education')],na.rm=FALSE)
+    
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- keep_cols <- c(
+    'record_id',
+    'parents_education',
+    'father_education',
+    'mother_education'
+  )
+  return(redcap_data[,incl_col])
+}
+
+caretaker_job <- function(redcap_data){
+  
+  # Only available in FULL Questionnaire: job_of_caretaker
+  # Items 1-3 are cocoa farmer, rubber farmer, other farmer
+  redcap_data$caretaker_farmer <- apply(redcap_data[,names(redcap_data) %like% '^job_of_caretaker_[1-3]$'],1,any)
+
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- keep_cols <- c(
+    'record_id',
+    'caretaker_farmer',
+    names(redcap_data)[names(redcap_data) %like% '^job_of_caretaker_\\d+$']
+  )
+  return(redcap_data[,incl_col])
+}
