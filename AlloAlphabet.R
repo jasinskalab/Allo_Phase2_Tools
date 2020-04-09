@@ -546,4 +546,48 @@ parent_involvedEducation <- function(redcap_data){
   return(redcap_data[,incl_col])
 }
 
+composite_index <- function(dataset,control_key=NA,col_key=NA) {
+  
+  # If no reverse-coding key is specified, assign 1 (not reversed)
+  # to every column in the dataset.
+  if (is.na(col_key)){
+    col_key = rep(1,dim(dataset)[2])
+  }
+  
+  # If no set of control arm observations is specified, assign
+  # control status (TRUE) to every row in the dataset.
+  # Only control observations are used in standardizing.
+  if (is.na(control_key)){
+    control_key = rep(TRUE,dim(dataset)[1])
+  }
+  
+  # Reverse code any columns where col_key is < 0 (ideally, -1)
+  dataset[,col_key<0] <- dataset[,col_key<0] * -1
+  
+  # Compute the means and SDs of the variables for standardizing.
+  # This operation ONLY uses control arm observations (control_key=TRUE)
+  varMeans <- apply(dataset[control_key,],2,mean,na.rm=TRUE)
+  varSDs <- apply(dataset[control_key,],2,sd,na.rm=TRUE)
+  
+  # Standardize the dataset using they means/SDs computed above.
+  z_dataset <- dataset
+  for (c in (1:ncol(dataset))) {
+    z_dataset[,c] <- (dataset[,c] - varMeans[c]) / varSDs[c]
+  }
+  
+  # Calculate the covariance matrix between all obs, all columns
+  covars <- cov(z_dataset,use='pairwise.complete')
+  
+  # Compute the composite score as follows:
+  # comp = (1' cov^-1 1)^-1 (1' cov^-1 z_dataset)
+  # for some reason z_dataset needs to be transposed, which is not clear
+  # in the Anderson 2008 description, but seems to work(?)
+  scores <- rep(NA,dim(z_dataset)[1])
+  scorable <- complete.cases(z_dataset)
+  scores[scorable] = solve( t(rep(1,ncol(z_dataset))) %*% solve(covars) %*% (rep(1,ncol(z_dataset))) ) %*%
+    ( t(rep(1,ncol(z_dataset))) %*% as.matrix(solve(covars)) %*% t(z_dataset[scorable,]) )
+  
+  return(scores)
+}
 
+  
