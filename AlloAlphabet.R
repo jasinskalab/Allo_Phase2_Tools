@@ -302,9 +302,21 @@ parent_educ <- function(redcap_data){
 
 caretaker_job <- function(redcap_data){
   
+  redcap_data$caretaker_farmer <- NA
+  
   # Only available in FULL Questionnaire: job_of_caretaker
   # Items 1-3 are cocoa farmer, rubber farmer, other farmer
-  redcap_data$caretaker_farmer <- apply(redcap_data[,names(redcap_data) %like% '^job_of_caretaker_[1-3]$'],1,any)
+  redcap_data$caretaker_farmer_childreport <- apply(redcap_data[,names(redcap_data) %like% '^job_of_caretaker_[1-3]$'],1,any)
+  
+  # Only available in TREATMENT Phone Contact: father_work, mother_work
+  # Items 1-3 are cocoa farmer, rubber farmer, other farmer
+  redcap_data$father_farmer_parentreport <- apply(redcap_data[,names(redcap_data) %like% '^father_work_[1-3]$'],1,any)
+  redcap_data$mother_farmer_parentreport <- apply(redcap_data[,names(redcap_data) %like% '^mother_work_[1-3]$'],1,any)
+  redcap_data$parent_farmer_parentreport <- (redcap_data$father_farmer_parentreport | redcap_data$mother_farmer_parentreport)
+  
+  # Primacy for parent report
+  redcap_data$caretaker_farmer <- redcap_data$parent_farmer_parentreport
+  redcap_data$caretaker_farmer[is.na(redcap_data$parent_farmer_parentreport)] <- redcap_data$caretaker_farmer_childreport[is.na(redcap_data$parent_farmer_parentreport)]
 
   ## Return a dataframe with the same number of rows as the input, but containing new columsn
   # Which columns to send
@@ -391,9 +403,9 @@ cocoa_activities <-function(redcap_data){
   }
   # This is meant to correct the activityCocoa to only include cocoa and not other agriculture. 
   # For the FULL kids (baseline_arm_1 and 2) that works, but for LITE kids, it was never asked.
-  redcap_data[
-    (!is.na(redcap_data$fieldwork_type_1) & redcap_data$fieldwork_type_1==0),
-    names(redcap_data) %like% '^activityCocoa_'] <- "Non"
+  #redcap_data[
+  #  (!is.na(redcap_data$fieldwork_type_1) & redcap_data$fieldwork_type_1==0),
+  #  names(redcap_data) %like% '^activityCocoa_'] <- "Non"
   
   
   redcap_data$Total_activityCocoa <- rowSums(redcap_data[,names(redcap_data) %like% '^activityCocoa_']=="Oui",na.rm=TRUE)
@@ -421,3 +433,117 @@ cocoa_activities <-function(redcap_data){
   )
   return(redcap_data[,incl_col])
 }
+
+family_readers <- function(redcap_data){
+  
+  # First aggregate the FULL and LITE versions for the binary question of whether any family member reads
+  # Currently PdR and NSP are both interpreted as Non. This can be adjusted (treat as NA) if needed.
+  redcap_data$family_readers_bin <- apply(redcap_data[,c('family_readers','family_readers_lite')]==1,1,any,na.rm=T)
+  # At this point, two NAs come back as False, so correct that
+  redcap_data$family_readers_bin[apply(is.na(redcap_data[,c('family_readers','family_readers_lite')]),1,all)] <- NA
+  
+  # For FULL version only, count the number of checks in the "who_reads" list (1-14), 15=NSP, 16=PdR
+  # These checkboxes are only populated if the child participants in FULL (NA for LITE)
+  # If a child responds Non, PdR, NSP in FULL, the checkboxes all remain as 0's
+  redcap_data$family_readers_num <- rowSums(redcap_data[,names(redcap_data) %like% '^who_reads_([1-9]|(1[0-4]))$'],na.rm=F)
+  
+  # Note: there are ~4 kids who responded "Oui" to family_readers_bin and then 0 to all who_reads
+  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- c(
+    'record_id',
+    'family_readers_bin',
+    'family_readers_num',
+    names(redcap_data)[names(redcap_data) %like% '^who_reads_([1-9]|(1[0-4]))$']
+  )
+  return(redcap_data[,incl_col])
+}
+
+book_at_home <- function(redcap_data){
+  
+  # As-tu un livre de lecture ?
+  
+  # First aggregate the FULL and LITE versions for the binary question
+  # Currently PdR and NSP are both interpreted as Non. This can be adjusted (treat as NA) if needed 
+  # for FULL (Oui=1,Non=2,NSP=3,PdR=4), but LITE only gave two options (Oui=1/Non=0).
+  redcap_data$book_at_home <- apply(redcap_data[,c('own_a_book','read_book_lite')]==1,1,any,na.rm=T)
+  # At this point, two NAs come back as False, so correct that
+  redcap_data$book_at_home[apply(is.na(redcap_data[,c('own_a_book','read_book_lite')]),1,all)] <- NA
+  
+  ## Note: objects_at_home_2/3 & objects_at_home_lite_2/3 also cover this question:
+  # Chez toi à la maison, y a-t-il (2) un livre pour enfant? (3) livres, journaux, ou autres choses à lir?
+  # These are not currently included, but maybe they should be.
+  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- c(
+    'record_id',
+    'book_at_home'
+  )
+  return(redcap_data[,incl_col])
+}
+
+family_french <- function(redcap_data){
+  
+  # First aggregate the FULL and LITE versions for the binary question of whether any family member reads
+  # Currently PdR and NSP are both interpreted as Non. This can be adjusted (treat as NA) if needed.
+  
+  # First rename the columns from FULL to something easier to recognize
+  names(redcap_data)[names(redcap_data) %like% '^languages_spoken_by_fr_\\d+$'] <- 
+    sprintf('speaks_french_%d',seq(1:length(names(redcap_data)[names(redcap_data) %like% '^languages_spoken_by_fr_\\d+$'])))
+  
+  # If a row is NA for the FULL data, copy the LITE data over
+  no_full_data <- apply(is.na(redcap_data[,names(redcap_data) %like% '^speaks_french_\\d+$']),1,all)
+  redcap_data[no_full_data,names(redcap_data) %like% '^speaks_french_\\d+$'] <- redcap_data[no_full_data,names(redcap_data) %like% '^lang_spoken_by_fr_lite_\\d+$']
+
+  # For FULL + LITE versions, count the number of checks in the "speaks_french" list (1-14), 15=NSP, 16=PdR
+  redcap_data$family_french_num <- rowSums(redcap_data[,names(redcap_data) %like% '^speaks_french_([1-9]|(1[0-4]))$'],na.rm=F)
+  
+  # Note: there are ~4 kids who responded "Oui" to family_readers_bin and then 0 to all who_reads
+  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- c(
+    'record_id',
+    'family_french_num',
+    names(redcap_data)[names(redcap_data) %like% '^speaks_french_([1-9]|(1[0-4]))$']
+  )
+  return(redcap_data[,incl_col])
+}
+
+parent_involvedEducation <- function(redcap_data){
+  
+  # This instrument was administered with the phone distribution form
+  # Therefore only available for Treatment children (FULL+LITE)
+  
+  # Questions are flagged with prefix "pp_"
+  col_list <- names(redcap_data[,names(redcap_data) %like% '^pp_'])
+  # Remove the last questions for "not involved at all"
+  col_list <- col_list[col_list!='pp_not_involved']
+  
+  # First add up all the affirmative responses (Oui=1)
+  redcap_data$parent_involvedEducation <- rowSums(redcap_data[,col_list]==1,na.rm=TRUE)
+  # If all NA values, replace with NA
+  redcap_data$parent_involvedEducation[apply(is.na(redcap_data[,col_list]),1,all)] <- NA
+  # If all NSP (don't know) values, replace with NA
+  redcap_data$parent_involvedEducation[apply(redcap_data[,col_list]==3,1,all,na.rm=TRUE)] <- NA
+  
+  # Copy the pp_not_involved to another column and export for comparison
+  # NOTE: There are several cases where this item disagrees with previous, i.e., several
+  # of the parent involvement questions are answered "Oui" and this question (parent not
+  # at all involved in education) is also answered "Oui".
+  redcap_data$parent_NOTinvolvedEducation <- redcap_data$pp_not_involved==1
+  
+  ## Return a dataframe with the same number of rows as the input, but containing new columsn
+  # Which columns to send
+  incl_col <- c(
+    'record_id',
+    'parent_involvedEducation',
+    'parent_NOTinvolvedEducation',
+    col_list
+    )
+  return(redcap_data[,incl_col])
+}
+
+
