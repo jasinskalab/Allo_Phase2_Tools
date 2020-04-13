@@ -462,24 +462,37 @@ family_readers <- function(redcap_data){
 
 book_at_home <- function(redcap_data){
   
-  # As-tu un livre de lecture ?
-  
+  ## As-tu un livre de lecture ?
   # First aggregate the FULL and LITE versions for the binary question
   # Currently PdR and NSP are both interpreted as Non. This can be adjusted (treat as NA) if needed 
   # for FULL (Oui=1,Non=2,NSP=3,PdR=4), but LITE only gave two options (Oui=1/Non=0).
-  redcap_data$book_at_home <- apply(redcap_data[,c('own_a_book','read_book_lite')]==1,1,any,na.rm=T)
+  redcap_data$book_at_home_lecture <- as.numeric(apply(redcap_data[,c('own_a_book','read_book_lite')]==1,1,any,na.rm=T))
   # At this point, two NAs come back as False, so correct that
-  redcap_data$book_at_home[apply(is.na(redcap_data[,c('own_a_book','read_book_lite')]),1,all)] <- NA
+  redcap_data$book_at_home_lecture[apply(is.na(redcap_data[,c('own_a_book','read_book_lite')]),1,all)] <- NA
   
   ## Note: objects_at_home_2/3 & objects_at_home_lite_2/3 also cover this question:
   # Chez toi à la maison, y a-t-il (2) un livre pour enfant? (3) livres, journaux, ou autres choses à lir?
   # These are not currently included, but maybe they should be.
   
+  ## Chez toi à la maison, y a-t-il un livre pour enfant ?
+  # Checkbox response, gave two options (Oui=1/Non=0).
+  redcap_data$book_at_home_enfant <- as.numeric(apply(redcap_data[,c('objects_at_home_2','objects_at_home_lite_2')]==1,1,any,na.rm=T))
+  # At this point, two NAs come back as False, so correct that
+  redcap_data$book_at_home_enfant[apply(is.na(redcap_data[,c('objects_at_home_2','objects_at_home_lite_2')]),1,all)] <- NA
+  
+  ## Chez toi à la maison, y a-t-i livres, journaux, ou autres choses à lire
+  # Checkbox response, gave two options (Oui=1/Non=0).
+  redcap_data$book_at_home_autre <- as.numeric(apply(redcap_data[,c('objects_at_home_3','objects_at_home_lite_3')]==1,1,any,na.rm=T))
+  # At this point, two NAs come back as False, so correct that
+  redcap_data$book_at_home_autre[apply(is.na(redcap_data[,c('objects_at_home_3','objects_at_home_lite_3')]),1,all)] <- NA
+  
   ## Return a dataframe with the same number of rows as the input, but containing new columsn
   # Which columns to send
   incl_col <- c(
     'record_id',
-    'book_at_home'
+    'book_at_home_lecture',
+    'book_at_home_enfant',
+    'book_at_home_autre'
   )
   return(redcap_data[,incl_col])
 }
@@ -488,6 +501,12 @@ family_french <- function(redcap_data){
   
   # First aggregate the FULL and LITE versions for the binary question of whether any family member reads
   # Currently PdR and NSP are both interpreted as Non. This can be adjusted (treat as NA) if needed.
+  
+  # First rename the languages_at_home_1 from FULL to something easier to recognize (french_at_home)
+  redcap_data$french_at_home <- redcap_data$languages_at_home_1
+  # If a row is NA for the FULL data, copy the LITE data over
+  no_full_data <- is.na(redcap_data$french_at_home)
+  redcap_data$french_at_home[no_full_data] <- redcap_data$languages_at_home_lite_1[no_full_data]
   
   # First rename the columns from FULL to something easier to recognize
   names(redcap_data)[names(redcap_data) %like% '^languages_spoken_by_fr_\\d+$'] <- 
@@ -506,6 +525,7 @@ family_french <- function(redcap_data){
   # Which columns to send
   incl_col <- c(
     'record_id',
+    'french_at_home',
     'family_french_num',
     names(redcap_data)[names(redcap_data) %like% '^speaks_french_([1-9]|(1[0-4]))$']
   )
