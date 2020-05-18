@@ -72,9 +72,16 @@ MakeConstruct7 <- function(redcap_data) {
   # (2) Ordinal measure of parents' education, based on caretaker data or child data (if caretaker data not available)
   # (3) Binary measure of whether caretakers are farmers (this variable is REVERSE CODED in that we hypothesize TRUE/1 predicts of lower outcome scores)
   
+  # Household object inventory
   ses_vars <- ses_inventory(redcap_data)
+  
+  # Ordinal parent education level (based on caretaker data where possible, supplemented with child data if caretaker data not available)
   educ_vars <- parent_educ(redcap_data)
+  
+  # Binary caretaker-is-farmer variable. If either mother OR father is reported as farmer, this variable is 1/TRUE
   farm_vars <- caretaker_job(redcap_data)
+  
+  # Combine in composite measure
   cons7_vars <- cbind(
     ses_vars$ses_score,
     educ_vars$parents_education,
