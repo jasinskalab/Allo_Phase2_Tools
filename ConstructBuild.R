@@ -102,13 +102,23 @@ MakeConstruct8 <- function(redcap_data) {
   # (2) Participation in hazardous agricultural activities
   # (3) Participation in domestic and economic activities (non-agricultural)
   
+  # Import the counts of cocoa-related agricultural activities using
+  # the cocoa_activities function.
   cocoa_vars <- cocoa_activities(redcap_data)
+  # If 'WorkCocoa' question was answered (child is in FULL arm) AND Total_activityCocoa is NA, adjust measures to 0
+  # (this occurs if WorkCocoa was answered "no", and the specific activities are not shown during interview)
   cocoa_vars$Total_activityCocoa[!is.na(cocoa_vars$WorkCocoa) & is.na(cocoa_vars$Total_activityCocoa)] <-0 
   cocoa_vars$Total_activityCocoa_Hazard[!is.na(cocoa_vars$WorkCocoa) & is.na(cocoa_vars$Total_activityCocoa_Hazard)] <-0 
   cocoa_vars$Total_activityCocoa_Nonhazard[!is.na(cocoa_vars$WorkCocoa) & is.na(cocoa_vars$Total_activityCocoa_Nonhazard)] <-0 
+  
+  
+  # This construct combines the economic and domestic activities (basically all non-agricultural)
+  # into a single measure. Here we just add activityChore and activity Economic together.
   domestic_vars <- domestic_activities(redcap_data)
   econ_vars <- economic_activities(redcap_data)
   Total_activityEconDomes <- domestic_vars$Total_activityChore + econ_vars$Total_activityEconomic
+  
+  
   cons8_vars <- cbind(
     cocoa_vars[,c('Total_activityCocoa_Nonhazard','Total_activityCocoa_Hazard')],
     Total_activityEconDomes)
