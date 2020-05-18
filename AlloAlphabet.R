@@ -332,6 +332,12 @@ caretaker_job <- function(redcap_data){
   # Primacy for parent report
   redcap_data$caretaker_farmer <- redcap_data$parent_farmer_parentreport
   redcap_data$caretaker_farmer[is.na(redcap_data$parent_farmer_parentreport)] <- redcap_data$caretaker_farmer_childreport[is.na(redcap_data$parent_farmer_parentreport)]
+  
+  # Parent report for farmer status distinguishes between father and mother, but this measure was only
+  # administered to the treatment arm children (part of phone distribution interview), so the control
+  # arm children report their parents' employment, but this measure is for "caretaker", not specifically
+  # father or mother (not separately). Therefore father & mother data are combined (boolean OR) when 
+  # Treatment and Control data are pooled.
 
   ## Return a dataframe with the same number of rows as the input, but containing new columsn
   # Which columns to send
