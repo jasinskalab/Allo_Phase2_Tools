@@ -1,43 +1,58 @@
 #' @export
+#' 
+
+## Define a function for identifying the latest LIV2 Redcap data file
+## User inputs the directory to search. The function will search for 
+## filenames matching the stem: 'LIV2PhoneBasedLitera_DATA_[datetime]
 # Data importing from Redcap file
 load_Redcap <- function(data_directory){
-  myCurrentFolder <- getwd()
-  message(c('Current folder is: ',myCurrentFolder))
-  myRedcapStorage <- data_directory
-  message(c('Moving to folder: ',myRedcapStorage))
+
+  # Template for data file name. Change this if the redcap
+  # file happens to be named differently
   data_filetmpl <- 'LIV2PhoneBasedLitera_DATA_\\d+'
   
-  ## Load required packages
+  # Load required packages
   reqd_packages = c('janitor','stringr','data.table')
   for (pack_i in (reqd_packages)) {
     if (!length(find.package(pack_i,quiet=TRUE))) {install.packages(pack_i)}
     library(pack_i,character.only=TRUE,warn.conflicts=FALSE) 
   }
   
+  # Save current working directory so you can get back later
+  myCurrentFolder <- getwd()
+  message(c('Current folder is: ',myCurrentFolder))
+  
+  # Move to the Redcap data_directory
+  myRedcapStorage <- data_directory
+  message(c('Moving to folder: ',myRedcapStorage))
   setwd(myRedcapStorage)
   
-  ## Identify any Redcap Data files and save names to a dataframe
+  # Identify any Redcap data files and save names to a dataframe
   allo_redcap_files <- as.data.frame(list.files('.',data_filetmpl),stringsAsFactors = FALSE)
   names(allo_redcap_files) <- 'filename'
   
-  ## Find the newest stored data file and load it
-  ## Find the newest file
+  # Find the newest stored data file and load it
   for( f in 1:dim(allo_redcap_files)[1] ) {
     filename_segs <- strsplit(strsplit(allo_redcap_files$filename[f],'\\.')[[1]][1],'_')[[1]]
     allo_redcap_files$datetime_str[f] <- paste(filename_segs[c(length(filename_segs)-1,length(filename_segs))],collapse='_')
   }
+  # Store the datetime from filename in a column using POSIX datetime format
   allo_redcap_files$posix <- as.POSIXct(strptime(allo_redcap_files$datetime_str,'%Y-%m-%d_%H%M'))
+  # Flag the largest POSIX value (newest file)
   allo_redcap_files$is_new <- allo_redcap_files$posix==max(allo_redcap_files$posix)
   message(paste(c("Newest file found:",allo_redcap_files$filename[allo_redcap_files$is_new]),collapse=" "))
+  
+  # Load the newest file (based on the max POSIX marked in "is_new" column)
   message('Loading first file only!')
   message('')
-  
   redcap_data <- clean_names(read.csv(allo_redcap_files$filename[allo_redcap_files$is_new][[1]],stringsAsFactors = FALSE))
   
+  # Go back to the original working directory
   setwd(myCurrentFolder)
   message(c('Returning to folder: ',myCurrentFolder))
   return(redcap_data)
 }
+
 
 ###-----PROCESS FRENCH LETTER / WORD / PSEUDOWORD -----
 french_literacy <- function(redcap_data){
@@ -386,8 +401,6 @@ domestic_activities <-function(redcap_data){
 cocoa_activities <-function(redcap_data){
   # Cocoa-related activities
   
-  redcap_data$WorkCocoa <- apply(redcap_data[,names(redcap_data) %like% '^activityCocoa_']=='Oui',1,any) # Cocoa
-  
   set_prefix <- 'activityCocoa_'
   idx_start = which(names(redcap_data) %like% '^clean_fields$')
   idx_stop = which(names(redcap_data) %like% '^other_job$')
@@ -406,7 +419,18 @@ cocoa_activities <-function(redcap_data){
   #redcap_data[
   #  (!is.na(redcap_data$fieldwork_type_1) & redcap_data$fieldwork_type_1==0),
   #  names(redcap_data) %like% '^activityCocoa_'] <- "Non"
+  redcap_data$WorkCocoa <- apply(redcap_data[,names(redcap_data) %like% '^activityCocoa_']=='Oui',1,any,na.rm=T) # Cocoa
+  redcap_data$WorkCocoa[apply(is.na(redcap_data[,names(redcap_data) %like% '^activityCocoa_']),1,all)] <- NA # Cocoa
   
+  # Now correct the variable based on work_in_fields response
+  # First set NSP and PdR to NA so we don't interpret those data
+  redcap_data$work_in_fields[!is.na(redcap_data$work_in_fields) & redcap_data$work_in_fields>2] <- NA
+  # Then update any WorkCocoa that are NA using the work_in_fields variable
+  redcap_data$WorkCocoa[is.na(redcap_data$WorkCocoa)] <- redcap_data$work_in_fields[is.na(redcap_data$WorkCocoa)]==1
+  # First set NSP and PdR to NA so we don't interpret those data
+  redcap_data$work_in_fields_lite[!is.na(redcap_data$work_in_fields_lite) & redcap_data$work_in_fields_lite>2] <- NA
+  # Then update any WorkCocoa that are NA using the work_in_fields variable
+  redcap_data$WorkCocoa[is.na(redcap_data$WorkCocoa)] <- redcap_data$work_in_fields[is.na(redcap_data$WorkCocoa)]==1
   
   redcap_data$Total_activityCocoa <- rowSums(redcap_data[,names(redcap_data) %like% '^activityCocoa_']=="Oui",na.rm=TRUE)
   redcap_data$Total_activityCocoa[apply(is.na(redcap_data[,names(redcap_data) %like% '^activityCocoa_']),1,all)] <- NA  
@@ -570,14 +594,14 @@ composite_index <- function(dataset,control_key=NA,col_key=NA) {
   
   # If no reverse-coding key is specified, assign 1 (not reversed)
   # to every column in the dataset.
-  if (is.na(col_key)){
+  if (all(is.na(col_key))){
     col_key = rep(1,dim(dataset)[2])
   }
   
   # If no set of control arm observations is specified, assign
   # control status (TRUE) to every row in the dataset.
   # Only control observations are used in standardizing.
-  if (is.na(control_key)){
+  if (all(is.na(control_key))){
     control_key = rep(TRUE,dim(dataset)[1])
   }
   
