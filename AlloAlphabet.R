@@ -420,10 +420,14 @@ cocoa_activities <-function(redcap_data){
   # Last cocoa-activity field in LITE
   idx_stop_lite = which(names(redcap_data) %like% '^other_job_lite$')
   
+  # Mark full and lite arm participants for easy reference throughout
+  redcap_data$full_arm <- (redcap_data$redcap_event_name=='baseline_arm_1' | redcap_data$redcap_event_name=='baseline_arm_2')
+  redcap_data$lite_arm <- (redcap_data$redcap_event_name=='baseline_arm_3')
+  
   # Copy all of the cocoa-activity data from the LITE columns into the FULL columns so
   # that children in both arms (FULL vs LITE) have data in the same location (FULL cols)
-  redcap_data[redcap_data$redcap_event_name=='baseline_arm_3',seq(idx_start,idx_stop)] <- 
-    redcap_data[redcap_data$redcap_event_name=='baseline_arm_3',seq(idx_start_lite,idx_stop_lite)] 
+  redcap_data[redcap_data$lite_arm,seq(idx_start,idx_stop)] <- 
+    redcap_data[redcap_data$lite_arm,seq(idx_start_lite,idx_stop_lite)] 
   
   # Rename the FULL cocoa activity columns with the prefix ('set_prefix')
   names(redcap_data)[seq(idx_start,idx_stop)] <- sprintf('%s%s',set_prefix,names(redcap_data)[seq(idx_start,idx_stop)])
@@ -436,29 +440,59 @@ cocoa_activities <-function(redcap_data){
     redcap_data[ , coli] <- new_value
   }
   
-  # Now we create an overall binary variable WorkCocoa that is supposed to index
-  # whether a child did any cocoa activities at all. For kids in the FULL arm 
-  # (baseline_arm_1 and 3), we asked them directly whether they work_in_fields, but 
-  # LITE arm kids were not asked. Instead, we start by reconstructing this variable
-  # by checking whether any given activityCocoa_ var was ever "Oui"
-  redcap_data$WorkCocoa <- apply(redcap_data[,names(redcap_data) %like% '^activityCocoa_']=='Oui',1,any,na.rm=T) # Cocoa
-  # Now for any child with all NA responses to activityCocoa (they were not asked
-  # the follow-up questions), code WorkCocoa as NA (missing data)
-  redcap_data$WorkCocoa[apply(is.na(redcap_data[,names(redcap_data) %like% '^activityCocoa_']),1,all)] <- NA # Cocoa
-
-  # WorkCocoa is now a first approximation for each child, but we also have an
-  # explicitly-asked item 'work_in_fields' for some children. 
-  # Use this data to correct WorkCocoa where applicable
+  # FULL and LITE children were administered slightly different questionnaires. All
+  # children were asked if they work in the fields ('work_in_fields', 
+  # 'work_in_fields_lite'), but only the FULL children were asked what crops they work
+  # with. Consequently, FULL children have their follow-up cocoa labor questions 
+  # conditioned on 'fieldwork_type_1' (cocoa), while all LITE children answered the
+  # cocoa labor questions regardless of their responses.
   
-  # First set NSP and PdR to NA so we don't interpret those data
+  # To reconcile these disparate questionnaires, we start by inferring binary responses
+  # to WorkAgric (worked in agriculture) and WorkCocoa (worked in cocoa agriculture 
+  # specifically) for all arms. Then we can conditionally look at specific responses to
+  # the cocoa labor questionnaire.
+  
+  # WorkAgric is based on work_in_fields / work_in_fields_lite (depending on arm)
+  redcap_data$WorkAgric <- NA
+  
+  # Set NSP and PdR responses to NA as missing variables (instead of FALSE)
   redcap_data$work_in_fields[!is.na(redcap_data$work_in_fields) & redcap_data$work_in_fields>2] <- NA
-  # Then update any WorkCocoa that are NA using the work_in_fields variable
-  redcap_data$WorkCocoa[is.na(redcap_data$WorkCocoa)] <- redcap_data$work_in_fields[is.na(redcap_data$WorkCocoa)]==1
-  # First set NSP and PdR to NA so we don't interpret those data
   redcap_data$work_in_fields_lite[!is.na(redcap_data$work_in_fields_lite) & redcap_data$work_in_fields_lite>2] <- NA
-  # Then update any WorkCocoa that are NA using the work_in_fields variable
-  redcap_data$WorkCocoa[is.na(redcap_data$WorkCocoa)] <- redcap_data$work_in_fields[is.na(redcap_data$WorkCocoa)]==1
   
+  # Convert work_in_fields(_lite) to Boolean WorkAgric for "Oui" responses
+  redcap_data$WorkAgric[redcap_data$full_arm] <-
+    redcap_data$work_in_fields[redcap_data$full_arm]==1
+  redcap_data$WorkAgric[redcap_data$lite_arm] <-
+    redcap_data$work_in_fields_lite[redcap_data$lite_arm]==1
+  
+  # For kids in the FULL arm (baseline_arm_1 and 3), we asked them directly whether 
+  # they worked in cocoa (fieldwork_type_1), but LITE arm kids were not asked. 
+  redcap_data$WorkCocoaQ <- NA
+  redcap_data$WorkCocoaQ <- redcap_data$fieldwork_type_1==1
+  redcap_data$WorkOther <- redcap_data$fieldwork_type_2==1 | redcap_data$fieldwork_type_3==1
+  xtabs(~WorkCocoaQ+WorkAgric,redcap_data[redcap_data$full_arm,])
+  
+  # Some of the agricultural labor questions directly mention cocoa pods/beans, and
+  # 95% of children who say yes to fieldwork_type_1 (Cocoa) say yes to one of these
+  redcap_data$WorkCocoa <- 
+    redcap_data$activityCocoa_ferment_pods=='Oui'| 
+    redcap_data$activityCocoa_dry_beans=='Oui' | 
+    redcap_data$activityCocoa_transport_fermented=='Oui'
+  # And set to false if agriculture question was true but questionnaire was not completed
+  redcap_data$WorkCocoa[is.na(redcap_data$WorkCocoa) & redcap_data$WorkAgric] <- FALSE
+  # Set to false if agriculture answer was false (this brings the LITE in line with FULL)
+  redcap_data$WorkCocoa[!redcap_data$WorkAgric] <- FALSE
+  
+  # Do full and lite arms have similar rates of reported cocoa labor?
+  # Check the conditional frequency of WorkCocoaQ and WorkAgric
+  xtabs(~WorkCocoaQ+WorkAgric,redcap_data[redcap_data$full_arm,])
+  xtabs(~WorkCocoa+WorkAgric,redcap_data[redcap_data$full_arm,])
+  xtabs(~WorkCocoa+WorkAgric,redcap_data[redcap_data$lite_arm,])
+  # What percentage of children who said yes to 'work_in_fields' said no to 'cocoa'
+  mean(!redcap_data$WorkCocoaQ[redcap_data$WorkAgric & redcap_data$full_arm], na.rm=T) # 54%
+  mean(!redcap_data$WorkCocoa[redcap_data$WorkAgric & redcap_data$full_arm], na.rm=T) # 57%
+  mean(!redcap_data$WorkCocoa[redcap_data$WorkAgric & redcap_data$lite_arm],na.rm=T) # 21%
+
   # Total activity in Cocoa is the sum of all "Oui" responses to the 
   # specific activityCocoa questions. However, this sum uses na.rm, 
   # so the all-NA cases will return as 0 instead of missing.
@@ -466,6 +500,21 @@ cocoa_activities <-function(redcap_data){
   # Correct these missing data by marking Total_activityCocoa as NA
   # when all of the individual activityCocoa variables are also NA
   redcap_data$Total_activityCocoa[apply(is.na(redcap_data[,names(redcap_data) %like% '^activityCocoa_']),1,all)] <- NA  
+  
+  # Plot hisograms
+  library(ggplot2)
+  ggplot(data=redcap_data[redcap_data$WorkAgric,],
+         aes(x=Total_activityCocoa, fill=WorkCocoa))+geom_histogram(alpha=0.3, position="identity")
+  ggplot(data=redcap_data[redcap_data$WorkAgric & redcap_data$lite_arm,],
+         aes(x=Total_activityCocoa, fill=WorkCocoa))+geom_histogram(alpha=0.3, position="identity")
+  ggplot(data=redcap_data[redcap_data$WorkAgric & redcap_data$full_arm,],
+         aes(x=Total_activityCocoa, fill=WorkCocoa))+geom_histogram(alpha=0.3, position="identity")
+   
+  # If the inferred status of WorkCocoa is false, remove the questionnaire info
+  # (might be referring to other agriculture, administered by mistake, etc)
+  # (For now, skipping this step to preserve the data, but it is applied right
+  # before computing the Child Activities construct #8)
+  #redcap_data$Total_activityCocoa[!redcap_data$WorkCocoa] <- NA
   
   # Sum the hazardous work types, as defined by Tulane survey
   # Define the list of variables that count as hazardous
@@ -475,8 +524,8 @@ cocoa_activities <-function(redcap_data){
   redcap_data$Total_activityCocoa_Hazard <- rowSums(redcap_data[,haz_work_types]=="Oui")
   # But if all of those variables are NA, remove the 0 total and mark as NA (missing)
   redcap_data$Total_activityCocoa_Hazard[apply(is.na(redcap_data[,haz_work_types]),1,all)] <- NA
-  # If we have data indicating that the children do NOT work in Cocoa, set total back to 0
-  redcap_data$Total_activityCocoa_Hazard[redcap_data$WorkCocoa==FALSE] <- 0
+  # If we have data indicating that the children do NOT work in Cocoa, set total back to NA
+  redcap_data$Total_activityCocoa_Hazard[redcap_data$WorkCocoa==FALSE] <- NA
   
   # Non-hazardous is all remaining activityCocoa columns after removing Hazardous
   redcap_data$Total_activityCocoa_Nonhazard <- redcap_data$Total_activityCocoa - redcap_data$Total_activityCocoa_Hazard
@@ -485,7 +534,9 @@ cocoa_activities <-function(redcap_data){
   # Which columns to send
   incl_col <- c(
     'record_id',
+    'WorkAgric',
     'WorkCocoa',
+    'WorkCocoaQ',
     'Total_activityCocoa',
     'Total_activityCocoa_Hazard',
     'Total_activityCocoa_Nonhazard',

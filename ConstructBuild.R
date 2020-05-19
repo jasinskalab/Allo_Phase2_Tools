@@ -105,11 +105,13 @@ MakeConstruct8 <- function(redcap_data) {
   # Import the counts of cocoa-related agricultural activities using
   # the cocoa_activities function.
   cocoa_vars <- cocoa_activities(redcap_data)
-  # If 'WorkCocoa' question was answered (child is in FULL arm) AND Total_activityCocoa is NA, adjust measures to 0
-  # (this occurs if WorkCocoa was answered "no", and the specific activities are not shown during interview)
-  cocoa_vars$Total_activityCocoa[!is.na(cocoa_vars$WorkCocoa) & is.na(cocoa_vars$Total_activityCocoa)] <-0 
-  cocoa_vars$Total_activityCocoa_Hazard[!is.na(cocoa_vars$WorkCocoa) & is.na(cocoa_vars$Total_activityCocoa_Hazard)] <-0 
-  cocoa_vars$Total_activityCocoa_Nonhazard[!is.na(cocoa_vars$WorkCocoa) & is.na(cocoa_vars$Total_activityCocoa_Nonhazard)] <-0 
+  
+  # In the FULL arm, children were only administered the questionnaire if they responded yes to 'WorkCocoaQ',
+  # but we don't have that Q for LITE arm, so both questionnaires are re-conditioned on inferred 'WorkCocoa'.
+  # (see AlloAlphabet.R for rationale on inferring status.) If WorkCocoa is FALSE, activities set to zero.
+  cocoa_vars$Total_activityCocoa[!cocoa_vars$WorkCocoa] <-0 
+  cocoa_vars$Total_activityCocoa_Hazard[!cocoa_vars$WorkCocoa] <-0 
+  cocoa_vars$Total_activityCocoa_Nonhazard[!cocoa_vars$WorkCocoa] <-0 
   
   
   # This construct combines the economic and domestic activities (basically all non-agricultural)
