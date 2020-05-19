@@ -524,8 +524,12 @@ cocoa_activities <-function(redcap_data){
   redcap_data$Total_activityCocoa_Hazard <- rowSums(redcap_data[,haz_work_types]=="Oui")
   # But if all of those variables are NA, remove the 0 total and mark as NA (missing)
   redcap_data$Total_activityCocoa_Hazard[apply(is.na(redcap_data[,haz_work_types]),1,all)] <- NA
+  
   # If we have data indicating that the children do NOT work in Cocoa, set total back to NA
-  redcap_data$Total_activityCocoa_Hazard[redcap_data$WorkCocoa==FALSE] <- NA
+  # This is now handled in the Construct Builder, and recommended that you implement it 
+  # yourself in any other applications of the data, but for purposes of this function, 
+  # I am retaining the unfiltered data.
+  #redcap_data$Total_activityCocoa_Hazard[redcap_data$WorkCocoa==FALSE] <- NA
   
   # Non-hazardous is all remaining activityCocoa columns after removing Hazardous
   redcap_data$Total_activityCocoa_Nonhazard <- redcap_data$Total_activityCocoa - redcap_data$Total_activityCocoa_Hazard
